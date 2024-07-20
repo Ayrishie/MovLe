@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "124181023203",
+    "project_id": "movle-9c681",
+    "storage_bucket": "movle-9c681.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:124181023203:android:9b669749fd970ab5d778d6",
+        "android_client_info": {
+          "package_name": "com.dlsu.mobdeve.movle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBRRr7QKqz-R_-J890S6cKmIRUdAbYueTc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

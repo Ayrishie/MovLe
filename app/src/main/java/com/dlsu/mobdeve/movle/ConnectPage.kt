@@ -27,7 +27,9 @@ import com.google.firebase.ktx.Firebase
 fun ConnectPage(
     onBackClick: () -> Unit,
     onSendCodeClick: () -> Unit,
-    onReceiveCodeClick: (String) -> Unit // Modified to pass the connected user's name
+    onReceiveCodeClick: (String) -> Unit,
+    currentUserId: String,
+    currentUserName: String
 ) {
     var generatedCode by remember { mutableStateOf<String?>(null) }
     var inputCode by remember { mutableStateOf("") }
@@ -39,7 +41,7 @@ fun ConnectPage(
         val newCode = (100000..999999).random().toString()
         val uniqueId = db.collection("codes").document().id
         db.collection("codes").document(uniqueId)
-            .set(mapOf("code" to newCode))
+            .set(mapOf("code" to newCode, "userName" to currentUserName, "userId" to currentUserId))
             .addOnSuccessListener {
                 generatedCode = newCode
                 isCodeGenerated = true
@@ -59,18 +61,32 @@ fun ConnectPage(
                 if (documents.isEmpty) {
                     Log.d("ConnectPage", "OTP does not match")
                 } else {
-                    val connectedUserName = "User Name" // Retrieve the connected user's name here
-                    db.collection("connections").document("current_connection")
+                    val otherUserName = documents.documents[0].getString("userName") ?: "Unknown User"
+                    val otherUserId = documents.documents[0].getString("userId") ?: "Unknown UserId"
+
+                    // Update User1's connection status
+                    db.collection("connections").document(currentUserId)
                         .set(mapOf(
                             "status" to "connected",
-                            "userName" to connectedUserName
+                            "connectedUserId" to otherUserId
                         ))
                         .addOnSuccessListener {
-                            Log.d("ConnectPage", "Connection status updated")
-                            onReceiveCodeClick(connectedUserName)
+                            // Update User2's connection status
+                            db.collection("connections").document(otherUserId)
+                                .set(mapOf(
+                                    "status" to "connected",
+                                    "connectedUserId" to currentUserId
+                                ))
+                                .addOnSuccessListener {
+                                    Log.d("ConnectPage", "Connection status updated for both users")
+                                    onReceiveCodeClick(otherUserName)
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("ConnectPage", "Failed to update other user's connection status", e)
+                                }
                         }
                         .addOnFailureListener { e ->
-                            Log.e("ConnectPage", "Failed to update connection status", e)
+                            Log.e("ConnectPage", "Failed to update current user's connection status", e)
                         }
                 }
             }
@@ -79,23 +95,40 @@ fun ConnectPage(
             }
     }
 
+    // Function to retrieve username from Firestore
+    fun retrieveUserName(userId: String, callback: (String) -> Unit) {
+        db.collection("users").document(userId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val userName = document.getString("username") ?: "Unknown User"
+                    callback(userName)
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("ConnectPage", "Failed to retrieve user data", e)
+            }
+    }
+
     // Function to listen for connection status updates
     LaunchedEffect(Unit) {
-        db.collection("connections").document("current_connection")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.e("ConnectPage", "Listen failed", e)
-                    return@addSnapshotListener
-                }
+        val userConnectionRef = db.collection("connections").document(currentUserId)
+        userConnectionRef.addSnapshotListener { snapshot, e ->
+            if (e != null) {
+                Log.e("ConnectPage", "Listen failed", e)
+                return@addSnapshotListener
+            }
 
-                if (snapshot != null && snapshot.exists()) {
-                    val status = snapshot.getString("status")
-                    val userName = snapshot.getString("userName")
-                    if (status == "connected" && userName != null) {
-                        onReceiveCodeClick(userName)
+            if (snapshot != null && snapshot.exists()) {
+                val status = snapshot.getString("status")
+                val otherUserId = snapshot.getString("connectedUserId")
+                if (status == "connected" && otherUserId != null) {
+                    retrieveUserName(otherUserId) { otherUserName ->
+                        onReceiveCodeClick(otherUserName)
                     }
                 }
             }
+        }
     }
 
     Box(
@@ -249,8 +282,10 @@ fun ConnectPagePreview() {
     MovLeTheme {
         ConnectPage(
             onBackClick = {},
-            onSendCodeClick = { /* Do nothing for preview */ },
-            onReceiveCodeClick = { /* Do nothing for preview */ }
+            onSendCodeClick = {},
+            onReceiveCodeClick = {},
+            currentUserId = "user123",
+            currentUserName = "User One"
         )
     }
 }

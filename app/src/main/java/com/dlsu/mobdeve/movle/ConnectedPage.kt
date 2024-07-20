@@ -1,13 +1,12 @@
 package com.dlsu.mobdeve.movle
 
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -19,48 +18,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dlsu.mobdeve.movle.ui.theme.MovLeTheme
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectedPage(
     userName: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onDisconnectClick: () -> Unit
 ) {
-    val db = Firebase.firestore
-
-    // Function to handle disconnect
-    fun handleDisconnect() {
-        db.collection("connections").document("current_connection")
-            .set(mapOf("status" to "disconnected"))
-            .addOnSuccessListener {
-                onBackClick()
-            }
-            .addOnFailureListener { e ->
-                // Handle error if needed
-                Log.e("ConnectedPage", "Failed to reset connection status", e)
-            }
-    }
-
-    // Function to listen for disconnection status updates
-    LaunchedEffect(Unit) {
-        db.collection("connections").document("current_connection")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.e("ConnectedPage", "Listen failed", e)
-                    return@addSnapshotListener
-                }
-
-                if (snapshot != null && snapshot.exists()) {
-                    val status = snapshot.getString("status")
-                    if (status == "disconnected") {
-                        onBackClick()
-                    }
-                }
-            }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -98,7 +63,7 @@ fun ConnectedPage(
                         .offset(y = -30.dp)
                         .padding(16.dp)
                         .size(30.dp)
-                        .clickable { handleDisconnect() }
+                        .clickable { onBackClick() }
                 )
                 Text(
                     text = "Ready, Set, Connect",
@@ -142,9 +107,8 @@ fun ConnectedPage(
                 )
             )
 
-            // Disconnect button
             Button(
-                onClick = { handleDisconnect() },
+                onClick = { onDisconnectClick() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
@@ -163,8 +127,9 @@ fun ConnectedPage(
 fun ConnectedPagePreview() {
     MovLeTheme {
         ConnectedPage(
-            userName = "Juan Dela Cruz",
-            onBackClick = {}
+            userName = "Test User",
+            onBackClick = {},
+            onDisconnectClick = {}
         )
     }
 }

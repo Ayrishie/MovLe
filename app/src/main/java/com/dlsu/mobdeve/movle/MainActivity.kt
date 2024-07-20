@@ -7,14 +7,19 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import com.dlsu.mobdeve.movle.ui.theme.MovLeTheme
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
 class MainActivity : ComponentActivity() {
+    private val db = Firebase.firestore // Define the Firestore instance
+    private lateinit var auth: FirebaseAuth // Define Firebase Auth
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
             FirebaseApp.initializeApp(this)
+            auth = FirebaseAuth.getInstance()
             Log.d("FirebaseInit", "Firebase initialized successfully")
         } catch (e: Exception) {
             Log.e("FirebaseInit", "Firebase initialization failed", e)
@@ -24,28 +29,24 @@ class MainActivity : ComponentActivity() {
             MovLeTheme {
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.Login) }
                 var connectedUserName by remember { mutableStateOf("") }
+                var currentUser by remember { mutableStateOf(auth.currentUser) }
+                var currentUserName by remember { mutableStateOf("") }
+                var currentUserId by remember { mutableStateOf("") }
 
-                // Listen for real-time updates to the connection status
-                LaunchedEffect(Unit) {
-                    val db = Firebase.firestore
-                    db.collection("connections").document("current_connection")
-                        .addSnapshotListener { snapshot, e ->
-                            if (e != null) {
-                                Log.e("MainActivity", "Listen failed", e)
-                                return@addSnapshotListener
-                            }
-
-                            if (snapshot != null && snapshot.exists()) {
-                                val status = snapshot.getString("status")
-                                val userName = snapshot.getString("userName")
-                                if (status == "connected" && userName != null) {
-                                    connectedUserName = userName
-                                    currentScreen = Screen.Connected(userName)
-                                } else if (status == "disconnected") {
-                                    currentScreen = Screen.Connect
+                LaunchedEffect(currentUser) {
+                    currentUser?.let { user ->
+                        db.collection("users").document(user.uid)
+                            .get()
+                            .addOnSuccessListener { document ->
+                                if (document.exists()) {
+                                    currentUserName = document.getString("username") ?: ""
+                                    currentUserId = user.uid
                                 }
                             }
-                        }
+                            .addOnFailureListener { e ->
+                                Log.e("MainActivity", "Failed to retrieve user data", e)
+                            }
+                    }
                 }
 
                 when (currentScreen) {
@@ -70,15 +71,28 @@ class MainActivity : ComponentActivity() {
                             // Handle send code logic here
                             // Example: currentScreen = Screen.Connected(userName)
                         },
-                        onReceiveCodeClick = { userName ->
-                            // Handle receive code logic here
-                            connectedUserName = userName
-                            currentScreen = Screen.Connected(userName)
-                        }
+                        onReceiveCodeClick = { otherUserName ->
+                            connectedUserName = otherUserName
+                            currentScreen = Screen.Connected(connectedUserName)
+                        },
+                        currentUserId = currentUserId, // Pass current user ID
+                        currentUserName = currentUserName // Pass current user name
                     )
                     is Screen.Connected -> ConnectedPage(
                         userName = connectedUserName,
-                        onBackClick = { currentScreen = Screen.Connect }
+                        onBackClick = { currentScreen = Screen.Connect },
+                        onDisconnectClick = {
+                            // Handle disconnect logic here
+                            db.collection("connections").document("current_connection")
+                                .delete()
+                                .addOnSuccessListener {
+                                    Log.d("MainActivity", "Connection status deleted")
+                                    currentScreen = Screen.Connect
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e("MainActivity", "Failed to delete connection status", e)
+                                }
+                        }
                     )
                 }
             }
